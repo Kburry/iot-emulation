@@ -18,28 +18,51 @@ int main(int argc, char * argv[]){
 	int running;
 	int msgid;
 
+	// Populate initial message
 	sensor_data.pid = getpid();
-	sensor_data.device_type = sensor;
+	sensor_data.device_type = SENSOR;
+	sensor_data.command = START;
+	sensor_data.current_value = atoi(argv[2]);;
+
 	sprintf(sensor_data.name,"%s",argv[1]);
-	sensor_data.threshold = atoi(argv[2]);
-	sensor_data.current_value = -1;
+	printf("here\n");
 
 	running = 1;
 	msgid = msgget((key_t) MSG_Q_KEY, 0666);
-	if(msgid == -1){ //e_print("Server message queue not started.");
+
+	// Ensure Message Queue is running
+	if(msgid == -1) {
 		fprintf(stderr,"Server message queue not started. Error: %d\n",errno);
 		exit(EXIT_FAILURE);
 	}
+
+	// Send first message
 	sensor_package.data = sensor_data;
-	sensor_package.message_type = SRV_Q_KEY;
-	while(running){
+	sensor_package.message_type = 1;
+	if(msgsnd(msgid,(void *)&sensor_package,sizeof(sensor_package.data),0) == -1){
+			fprintf(stderr, "Message sent failed. Error: %d\n",errno);
+			exit(EXIT_FAILURE);
+	}
+	sensor_data.command = UPDATE;
+
+	// Send subsequent message(s)
+	while(running) {
+		if (sensor_data.command == STOP) {
+			printf("Shut-down command received: Shutting down\n");
+			exit(EXIT_SUCCESS);
+		}
+		// Randomly generated sensor range [-50, 50]
+		sensor_data.current_value = (rand() % 100) - 50;
+	
 		if(msgsnd(msgid,(void *)&sensor_package,sizeof(sensor_package.data),0) == -1){
 			fprintf(stderr, "Message sent failed. Error: %d\n",errno);
 			exit(EXIT_FAILURE);
 		}
+		printf("message sent\n");
 		if(msgrcv(msgid,(void *)&sensor_package,sizeof(sensor_package.data),sensor_data.pid,0) == -1){
 			;
 		}
+		// Check every 2 seconds
 		sleep(2);
 	}
 }
