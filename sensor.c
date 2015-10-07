@@ -20,7 +20,7 @@ int main(int argc, char * argv[]){
 
 	// Populate initial message
 	sensor_data.pid = getpid();
-	sensor_data.device_type = SENSOR;
+	sensor_data.dev_type = SENSOR;
 	sensor_data.command = START;
 	sensor_data.current_value = atoi(argv[2]);;
 
@@ -44,6 +44,7 @@ int main(int argc, char * argv[]){
 			exit(EXIT_FAILURE);
 	}
 	sensor_data.command = UPDATE;
+	printf("Sensor PID: %d\n", sensor_data.pid);
 
 	// Send subsequent message(s)
 	while(running) {
@@ -53,15 +54,17 @@ int main(int argc, char * argv[]){
 		}
 		// Randomly generated sensor range [-50, 50]
 		sensor_data.current_value = (rand() % 100) - 50;
-	
+		sensor_package.data = sensor_data;
+		printf("Sensor \"%s\" Value: %d\n",sensor_data.name, sensor_data.current_value);
+
 		if(msgsnd(msgid,(void *)&sensor_package,sizeof(sensor_package.data),0) == -1){
 			fprintf(stderr, "Message sent failed. Error: %d\n",errno);
 			exit(EXIT_FAILURE);
 		}
-		printf("message sent\n");
-		if(msgrcv(msgid,(void *)&sensor_package,sizeof(sensor_package.data),sensor_data.pid,0) == -1){
+		if(msgrcv(msgid,(void *)&sensor_package,sizeof(sensor_package.data),sensor_data.pid,IPC_NOWAIT) == -1){
 			;
 		}
+
 		// Check every 2 seconds
 		sleep(2);
 	}

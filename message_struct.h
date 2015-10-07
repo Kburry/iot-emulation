@@ -3,6 +3,7 @@
 #define MSG_Q_KEY 1234
 #define SRV_Q_KEY 1
 #define NAMESIZE 25
+
 #define ON 1
 #define OFF 0
 

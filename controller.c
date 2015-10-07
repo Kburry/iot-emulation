@@ -7,8 +7,7 @@
 #include <sys/msg.h>
 #include "message_struct.h"
 
-int start_controller();
-int get_device_index(device_st*, pid_t, int);
+
 
 typedef struct {
 	char sensor_name[NAMESIZE];		// if NULL, unknown sensor
@@ -17,65 +16,92 @@ typedef struct {
 	int actuator_pid;				// Is -1 if no device.
 	int threshold;					// Taken from SENSOR
 	int is_on;						// Only for ACTUATOR
-}device_st;
+}group_st;
+
+int start_controller();
+int get_index_by_pid(group_st *devices, int number_of_groups, pid_t pid);
+int get_index_by_name(group_st *devices, int number_of_groups, char *name);
+void update_actuator(int msgid, group_st *devices, int index, int is_on);
+
 
 // Global Actuator Message: toggle ON/OFF
 message_package_st toggle_act_message;
-	message_data_st toggle_act_data {
+message_data_st toggle_act_data = {
 		.pid = -1,
 		.name = "Actuator-TOGGLE",
 		.dev_type = ACTUATOR,
 		.command = UPDATE,
 		.current_value = -1
-	};
-	toggle_act_message.data = toggle_act_data;
+};
+
 
 int main(int argc, char argv[]){
 	message_package_st received_message;
 	message_data_st received_data;
+	toggle_act_message.data = toggle_act_data;
 
-	device_st devices[50] = {};
-	int number_of_devices = 0;
+	group_st devices[50] = {};
+	int number_of_groups = 0;
 	int msgid = start_controller();
 
 	// Managing devices	
 	while(1){
-		printf("\nwaiting on message\n");
 		if(msgrcv(msgid,(void *)&received_message,sizeof(received_message.data),0,0) == -1){
 			fprintf(stderr, "Error: %d\n",errno);		
 		}
-		printf("message received\n");
 		received_data = received_message.data;
-
-		int device_index = get_device_index(*devices, received_data.pid, number_of_devices);
-
-		// Add new device
-		if (device_index == -1 && number_of_devices < 50) {
-			device_index = number_of_devices - 1;
-			number_of_devices++;
-			devices[device_index].sensor_name = received_data.name;	
+		int device_index = get_index_by_pid(devices, number_of_groups,received_data.pid);
+		int name_index = get_index_by_name(devices, number_of_groups, received_data.name);
+		
+		// Add new device --> No group exists
+		if (device_index == -1 && name_index == -1 && number_of_groups < 50) {
+			int new_index = number_of_groups;
+			printf("\nNew Device\nGroup: %s  Threshold: %d\n\n",received_data.name, received_data.current_value);
+			number_of_groups++;
+			strcpy(devices[new_index].sensor_name, received_data.name);	
 
 			// New SENSOR		
 			if (received_data.dev_type == SENSOR) {
-				devices[device_index].sensor_pid = received_data.pid;
-				devices[device_index].threshold = received_data.current_value
+				devices[new_index].sensor_pid = received_data.pid;
+				devices[new_index].threshold = received_data.current_value;
 			}
 			// New ACTUATOR
 			else if (received_data.dev_type == ACTUATOR) {
-				devices[device_index].actuator_pid = received_data.pid;
-				devices[device_index].is_on = received_data.current_value;
+				devices[new_index].actuator_pid = received_data.pid;
+				devices[new_index].is_on = received_data.current_value;
 			}
 		}
+
+		// Add new device --> Group already exists
+		else if (device_index == -1 && name_index >= 0) {
+			// New SENSOR		
+			if (received_data.dev_type == SENSOR) {
+				devices[name_index].sensor_pid = received_data.pid;
+				devices[name_index].threshold = received_data.current_value;
+				printf("Sensor added to \"%s\"\n", devices[name_index].sensor_name);
+			}
+			// New ACTUATOR
+			else if (received_data.dev_type == ACTUATOR) {
+				devices[name_index].actuator_pid = received_data.pid;
+				devices[name_index].is_on = received_data.current_value;
+				printf("Actuator added to \"%s\"\n", devices[name_index].sensor_name);
+			}
+		}
+
 		// Device already stored --> Update
 		else if (device_index >= 0) {
 			if (received_data.dev_type == SENSOR) {
-				// Turn OFF Actuator
-				if (received_data.current_value >= devices[device_index].threshold 
-					&& devices[device_index].is_on == ON) {
-					devices[device_index].is_on = OFF;
-					toggle_act_data.current_value = OFF;
-					toggle_act_data.pid = devices[device_index].actuator_pid
-					//toggle_act_message.key = toggle_act_data.pid
+				
+				// Check Threshold && Actuator status (Actuator must exist)
+				if (devices[device_index].actuator_pid != 0) {
+
+
+					if (received_data.current_value >= devices[device_index].threshold && devices[device_index].is_on == ON) {
+						update_actuator(msgid, devices, device_index, OFF);
+					}
+					else if (received_data.current_value < devices[device_index].threshold && devices[device_index].is_on == OFF) {
+						update_actuator(msgid, devices, device_index, ON);
+					}
 				}
 			}
 			else if (received_data.dev_type == ACTUATOR) {
@@ -83,7 +109,7 @@ int main(int argc, char argv[]){
 			}
 		}
 
-		printf("%s:%d",received_data.name,received_data.pid);
+		//printf("%s: %d\n",received_data.name,received_data.pid);
 	};
 }
 
@@ -101,16 +127,48 @@ int start_controller(){
 }
 
 /**
- * Return index of device (specified by Process ID)
+ * Return index of device (specified by Name)
  **/
-int get_device_index(device_st* devices, pid_t pid, int number_of_devices) {	
-	for (int i = 0; i < number_of_devices; i++) {
-		if (devices[i].sensor_pid == pid || devices[i].actuator_pid == pid)
+int get_index_by_name(group_st *devices, int number_of_groups, char *name){
+	for (int i = 0; i < number_of_groups; i++) {
+		//printf("devices[i].pid: %d, pid: %d\n",devices[i].sensor_pid,pid);
+		if (strcmp(name,devices[i].sensor_name)==0){
+			//printf("pid is:%d\n",pid);
 			return i;
+		}
 	}
 	return -1;
 }
 
+/**
+ *  Update Actuator --> Message the actuator, turning it ON/OFF
+ **/
+void update_actuator(int msgid, group_st *devices, int index, int is_on) {
+	devices[index].is_on = is_on;
+	toggle_act_data.current_value = is_on;
+	toggle_act_data.pid = devices[index].actuator_pid;
+
+	toggle_act_message.message_type = toggle_act_data.pid;
+	toggle_act_message.data = toggle_act_data;
+	if ( msgsnd(msgid, (void *) &toggle_act_message, sizeof(toggle_act_message.data), 0) == -1) {
+		fprintf(stderr, "Message sent failed. Error: %d\n", errno);
+		exit(EXIT_FAILURE);
+	}
+}
+
+/**
+ * Return index of device (specified by Process ID)
+ **/
+int get_index_by_pid(group_st *devices, int number_of_groups, pid_t pid) {	
+	for (int i = 0; i < number_of_groups; i++) {
+		//printf("devices[i].pid: %d, pid: %d\n",devices[i].sensor_pid,pid);
+		if (devices[i].sensor_pid == pid || devices[i].actuator_pid == pid){
+			//printf("pid is:%d\n",pid);
+			return i;
+		}
+	}
+	return -1;
+}
 
 
 //stopping()//make sure you stop all devices as well
