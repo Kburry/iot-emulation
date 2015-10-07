@@ -23,16 +23,14 @@ int main(int argc, char * argv[]){
 	int running;
 	int msgid;
 
-	char actuator_name[25] = {};
-	strcpy(actuator_name, argv[1]);
-
 	// Populate initial message
 	actuator_data.pid = getpid();
 	actuator_data.dev_type = ACTUATOR;
 	actuator_data.command = START;
-	actuator_data.current_value = atoi(argv[3]);;
 
-	sprintf(actuator_data.name,"%s",argv[2]);
+	strcpy(actuator_data.actuator_name, argv[1]);
+	strcpy(actuator_data.name, argv[2]);
+	actuator_data.current_value = atoi(argv[3]);
 
 	running = 1;
 	msgid = msgget((key_t) MSG_Q_KEY, 0666);
@@ -49,6 +47,7 @@ int main(int argc, char * argv[]){
 	if(msgsnd(msgid,(void *)&actuator_package,sizeof(actuator_package.data),0) == -1){
 			fprintf(stderr, "Message sent failed. Error: %d\n",errno);
 			exit(EXIT_FAILURE);
+
 	}
 	printf("Actuator PID: %d\n", actuator_data.pid);
 
@@ -65,7 +64,7 @@ int main(int argc, char * argv[]){
 			printf("Shut-down command received: Shutting down\n");
 			exit(EXIT_SUCCESS);
 		}
-		print_state(actuator_name, actuator_data.current_value);
+		print_state(actuator_data.actuator_name, actuator_data.current_value);
 	}
 }
 

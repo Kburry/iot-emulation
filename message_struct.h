@@ -21,6 +21,7 @@ typedef enum {
 typedef struct {
 	pid_t pid;
 	char name[NAMESIZE];
+	char actuator_name[NAMESIZE];
 	Dev_Type dev_type;
 	Dev_Command command;
 	int current_value;

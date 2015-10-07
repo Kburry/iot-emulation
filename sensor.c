@@ -22,9 +22,11 @@ int main(int argc, char * argv[]){
 	sensor_data.pid = getpid();
 	sensor_data.dev_type = SENSOR;
 	sensor_data.command = START;
-	sensor_data.current_value = atoi(argv[2]);;
+	sensor_data.current_value = atoi(argv[2]);
+	
+	strcpy(sensor_data.actuator_name ,"");
+	strcpy(sensor_data.name, argv[1]);
 
-	sprintf(sensor_data.name,"%s",argv[1]);
 	printf("here\n");
 
 	running = 1;
@@ -61,7 +63,7 @@ int main(int argc, char * argv[]){
 			fprintf(stderr, "Message sent failed. Error: %d\n",errno);
 			exit(EXIT_FAILURE);
 		}
-		if(msgrcv(msgid,(void *)&sensor_package,sizeof(sensor_package.data),sensor_data.pid,IPC_NOWAIT) == -1){
+		if(msgrcv(msgid, (void *) &sensor_package, sizeof(sensor_package.data), sensor_data.pid, IPC_NOWAIT) == -1){
 			;
 		}
 

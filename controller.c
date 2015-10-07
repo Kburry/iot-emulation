@@ -22,7 +22,8 @@ int start_controller();
 int get_index_by_pid(group_st *devices, int number_of_groups, pid_t pid);
 int get_index_by_name(group_st *devices, int number_of_groups, char *name);
 void update_actuator(int msgid, group_st *devices, int index, int is_on);
-
+void child();
+void parent();
 
 // Global Actuator Message: toggle ON/OFF
 message_package_st toggle_act_message;
@@ -36,6 +37,29 @@ message_data_st toggle_act_data = {
 
 
 int main(int argc, char argv[]){
+
+	int pid = fork();
+	switch(pid) {
+    case -1:
+      /* Failure */
+      perror("fork failed");
+      exit(1);
+    case 0:
+      /* child */
+		child();
+	}; // 
+	parent();
+}
+
+/**
+ *
+ **/
+
+void parent(){
+	while(1){};
+}
+
+void child(){
 	message_package_st received_message;
 	message_data_st received_data;
 	toggle_act_message.data = toggle_act_data;
@@ -46,8 +70,8 @@ int main(int argc, char argv[]){
 
 	// Managing devices	
 	while(1){
-		if(msgrcv(msgid,(void *)&received_message,sizeof(received_message.data),0,0) == -1){
-			fprintf(stderr, "Error: %d\n",errno);		
+		if(msgrcv(msgid,(void *)&received_message,sizeof(received_message.data),1,0) == -1){
+			fprintf(stderr, "Message Received Error: %d\n",errno);		
 		}
 		received_data = received_message.data;
 		int device_index = get_index_by_pid(devices, number_of_groups,received_data.pid);
@@ -69,6 +93,7 @@ int main(int argc, char argv[]){
 			else if (received_data.dev_type == ACTUATOR) {
 				devices[new_index].actuator_pid = received_data.pid;
 				devices[new_index].is_on = received_data.current_value;
+				strcpy(devices[new_index].actuator_name,received_data.actuator_name);
 			}
 		}
 
@@ -84,6 +109,7 @@ int main(int argc, char argv[]){
 			else if (received_data.dev_type == ACTUATOR) {
 				devices[name_index].actuator_pid = received_data.pid;
 				devices[name_index].is_on = received_data.current_value;
+				strcpy(devices[name_index].actuator_name,received_data.actuator_name);
 				printf("Actuator added to \"%s\"\n", devices[name_index].sensor_name);
 			}
 		}
@@ -91,11 +117,9 @@ int main(int argc, char argv[]){
 		// Device already stored --> Update
 		else if (device_index >= 0) {
 			if (received_data.dev_type == SENSOR) {
-				
+			
 				// Check Threshold && Actuator status (Actuator must exist)
 				if (devices[device_index].actuator_pid != 0) {
-
-
 					if (received_data.current_value >= devices[device_index].threshold && devices[device_index].is_on == ON) {
 						update_actuator(msgid, devices, device_index, OFF);
 					}
@@ -104,14 +128,10 @@ int main(int argc, char argv[]){
 					}
 				}
 			}
-			else if (received_data.dev_type == ACTUATOR) {
-			
-			}
 		}
-
-		//printf("%s: %d\n",received_data.name,received_data.pid);
-	};
+	}
 }
+
 
 /**
  * Return message queue ID.
@@ -145,11 +165,21 @@ int get_index_by_name(group_st *devices, int number_of_groups, char *name){
  **/
 void update_actuator(int msgid, group_st *devices, int index, int is_on) {
 	devices[index].is_on = is_on;
+	
 	toggle_act_data.current_value = is_on;
 	toggle_act_data.pid = devices[index].actuator_pid;
-
 	toggle_act_message.message_type = toggle_act_data.pid;
+
+	strcpy(toggle_act_data.actuator_name,devices[index].actuator_name);
 	toggle_act_message.data = toggle_act_data;
+
+	if(is_on){
+		printf("%s threshold crossed. Turning ON\n",toggle_act_data.actuator_name);
+	}	
+	else{
+		printf("%s threshold crossed. Turning OFF\n",toggle_act_data.actuator_name);
+	}
+
 	if ( msgsnd(msgid, (void *) &toggle_act_message, sizeof(toggle_act_message.data), 0) == -1) {
 		fprintf(stderr, "Message sent failed. Error: %d\n", errno);
 		exit(EXIT_FAILURE);
