@@ -5,5 +5,5 @@ actuator.c: message_struct.h
 controller.c: message_struct.h
 
 clean:
-	rm -f sensor actuator controller
+	rm -f sensor actuator controller cloud
 	

@@ -42,7 +42,7 @@ int main(int argc, char * argv[]){
 	sensor_package.data = sensor_data;
 	sensor_package.message_type = 1;
 	if(msgsnd(msgid,(void *)&sensor_package,sizeof(sensor_package.data),0) == -1){
-			fprintf(stderr, "Message sent failed. Error: %d\n",errno);
+			fprintf(stderr, "Message Sent failed. Error: %d\n",errno);
 			exit(EXIT_FAILURE);
 	}
 	sensor_data.command = UPDATE;
@@ -50,21 +50,21 @@ int main(int argc, char * argv[]){
 
 	// Send subsequent message(s)
 	while(running) {
-		if (sensor_data.command == STOP) {
-			printf("Shut-down command received: Shutting down\n");
-			exit(EXIT_SUCCESS);
-		}
 		// Randomly generated sensor range [-50, 50]
 		sensor_data.current_value = (rand() % 100) - 50;
 		sensor_package.data = sensor_data;
 		printf("Sensor \"%s\" Value: %d\n",sensor_data.name, sensor_data.current_value);
 
-		if(msgsnd(msgid,(void *)&sensor_package,sizeof(sensor_package.data),0) == -1){
-			fprintf(stderr, "Message sent failed. Error: %d\n",errno);
-			exit(EXIT_FAILURE);
+		msgrcv(msgid, (void *) &sensor_package, sizeof(sensor_package.data), sensor_data.pid, IPC_NOWAIT);
+		//Stop Everything
+		if (sensor_data.command == STOP) {
+			printf("Shut-down command received: Shutting down\n");
+			exit(EXIT_SUCCESS);
 		}
-		if(msgrcv(msgid, (void *) &sensor_package, sizeof(sensor_package.data), sensor_data.pid, IPC_NOWAIT) == -1){
-			;
+
+		if(msgsnd(msgid,(void *)&sensor_package,sizeof(sensor_package.data),0) == -1){
+			printf("Controller not running: Shutting down\n");
+			exit(EXIT_FAILURE);
 		}
 
 		// Check every 2 seconds

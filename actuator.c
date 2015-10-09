@@ -12,9 +12,11 @@ void e_print(char * err_ptr);
 void print_state(char *name, int is_on);
 
 /**
+ *  Code responisble for initializing an Actuator
  *  
- *  1 = ON
- *  0 = OFF
+ *  From command line: ./actuator actuator_name paired_sensor_name ON/OFF
+ *  ON  = 1
+ *  OFF = 0
  **/
 int main(int argc, char * argv[]){
 	
@@ -37,29 +39,31 @@ int main(int argc, char * argv[]){
 
 	// Ensure Message Queue is running
 	if(msgid == -1) {
-		fprintf(stderr,"Message queue not started. Error: %d\n",errno);
+		fprintf(stderr, "Message queue not started. Error: %d\n", errno);
 		exit(EXIT_FAILURE);
 	}
 
 	// Send first message --> "It's alive!!!!"
 	actuator_package.data = actuator_data;
 	actuator_package.message_type = 1;
-	if(msgsnd(msgid,(void *)&actuator_package,sizeof(actuator_package.data),0) == -1){
-			fprintf(stderr, "Message sent failed. Error: %d\n",errno);
+	
+	if(msgsnd(msgid, (void *) &actuator_package, sizeof(actuator_package.data), 0) == -1){
+			fprintf(stderr, "Message sent failed. Error: %d\n", errno);
 			exit(EXIT_FAILURE);
 
 	}
-	printf("Actuator PID: %d\n", actuator_data.pid);
+	printf("%s Actuator PID: %d\n", actuator_data.actuator_name, actuator_data.pid);
 
 	// Receive subsequent message(s)
 	while(running) {
 
 		if(msgrcv(msgid, (void *) &actuator_package, sizeof(actuator_package.data), actuator_data.pid, 0) == -1){
-			fprintf(stderr, "Failed receiving message. Error: %d\n",errno);
+			fprintf(stderr, "Failed receiving message. Error: %d\n", errno);
 			exit(EXIT_FAILURE);
 		}
 		actuator_data = actuator_package.data;
 
+		// Shut Down
 		if (actuator_data.command == STOP) {
 			printf("Shut-down command received: Shutting down\n");
 			exit(EXIT_SUCCESS);
@@ -81,7 +85,7 @@ void print_state(char *name, int is_on) {
 }
 
 void e_print(char * err_ptr){
-	fprintf(stderr, "%s Error: %d\n",err_ptr,errno);
+	fprintf(stderr, "%s Error: %d\n", err_ptr,errno);
 	exit(EXIT_FAILURE);
 }
 
