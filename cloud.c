@@ -59,19 +59,25 @@ int main(int argc, char argv[]){
 		break;
 	};	
 	
-	if (access(USER_FIFO_NAME,F_OK) == -1) {
-			if (mkfifo(USER_FIFO_NAME,0777) != 0) {
-				fprintf(stderr,"Could not create fifo: %s\n", USER_FIFO_NAME);
-				exit(EXIT_FAILURE);
-			} 
-		}
+	if (access(USER_FIFO_NAME, F_OK) == -1) {
+		if (mkfifo(USER_FIFO_NAME, 0777) != 0) {
+			fprintf(stderr, "Could not create fifo: %s\n", USER_FIFO_NAME);
+			exit(EXIT_FAILURE);
+		} 
+	}
+	send_pipe_fd = open(USER_FIFO_NAME, O_WRONLY);
 	
-	char usr_str[50];
 	while(1) {
 		// Format: GET sensor_name			-->	Returns: Sensor X with threshhold Y paired with Actuator Z 
 		// Format: PUT actuator_name ON/OFF	--> Returns: User turned ON/OFF Actuator Z
 		printf("Enter Command (GET SENSOR_NAME or PUT ACTUATOR_NAME):\n");
-		scanf("%s", &usr_str);
+		scanf("%s", &send_buffer);
+		
+		
+		if ( write(send_pipe_fd, send_buffer, BUFFER_SIZE) == -1 ){
+			fprintf(stderr,"write error on pipe\n");
+			exit(EXIT_FAILURE);
+		}
 	}
 	
 	

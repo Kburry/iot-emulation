@@ -26,10 +26,12 @@ void update_actuator(int msgid, group_st *devices, int index, int is_on, int sen
 int get_index_by_pid(group_st *devices, int number_of_groups, pid_t pid);
 int get_index_by_name(group_st *devices, int number_of_groups, char *name);
 
+void send_cloud_message(char **cloud_request_array);
+
 void child();
 void parent();
 
-int pipe_fd;
+int send_pipe_fd;
 
 // Actuator Message: used to toggle actuator ON/OFF
 message_package_st toggle_act_message;
@@ -62,8 +64,8 @@ int main(int argc, char argv[]){
 		} 
 	}
 
-	pipe_fd = open(CTRL_FIFO_NAME, O_WRONLY);
-	printf("Process result %d\n", pipe_fd);
+	send_pipe_fd = open(CTRL_FIFO_NAME, O_WRONLY);
+	printf("Process result %d\n", send_pipe_fd);
 	
 	
 	int pid = fork();
@@ -95,7 +97,7 @@ void sigint_parent_handler(int sig) {
 	if ( msgsnd(msgid, (void *) &stop_msg, sizeof(stop_msg.data), 0) == -1 ) {
 		fprintf(stderr, "Child Process not stopped\n");
 	}
-	(void)close(pipe_fd);
+	(void)close(send_pipe_fd);
 	exit(EXIT_SUCCESS);
 }
 
@@ -116,8 +118,8 @@ void sigusr1_parent_handler(int sig){
 		sprintf(buffer, "Sensor \"%s\" with value %d, turned OFF %s", message_data.sensor_name, 
 				message_data.sensor_value, message_data.actuator_name);
 	}
-	//printf("%s\n",buffer);
-	if ( write(pipe_fd,buffer,BUFFER_SIZE) == -1 ){
+
+	if ( write(send_pipe_fd, buffer, BUFFER_SIZE) == -1 ){
 		fprintf(stderr,"write error on pipe\n");
 		exit(EXIT_FAILURE);
 	}
@@ -132,20 +134,25 @@ void sigint_child_handler(int sig) {}
  **/
 void parent(){
 	
-	//if (access(CTRL_FIFO_NAME,F_OK) == -1) {
-	//	printf("can't access fifo, making one\n");
-	//	if (mkfifo(CTRL_FIFO_NAME,0777) != 0) {
-	//		fprintf(stderr,"Could not create fifo: %s\n", CTRL_FIFO_NAME);
-	//		exit(EXIT_FAILURE);
-	//	} 
-	//}
+	int user_cmnd;
+	int receive_pipe_fd;
+	char receive_buffer[BUFFER_SIZE];
+	char *test;
+	char *word;
+	char *cloud_request[2];
+	int number_of_words = 0;
 
-	//printf("in parent\n");
-	//pipe_fd = open(CTRL_FIFO_NAME, O_WRONLY);
-	//printf("Process result %d\n", pipe_fd);
-	
 	struct sigaction parent_action;
 	struct sigaction notification_action;
+
+	if (access(USER_FIFO_NAME,F_OK) == -1) {
+		if (mkfifo(USER_FIFO_NAME,0777) != 0) {
+			fprintf(stderr,"Could not create fifo: %s\n", USER_FIFO_NAME);
+			exit(EXIT_FAILURE);
+		} 
+	}
+	
+	receive_pipe_fd = open(USER_FIFO_NAME, O_RDONLY);
 	
 	parent_action.sa_handler = sigint_parent_handler;
 	notification_action.sa_handler = sigusr1_parent_handler;
@@ -159,7 +166,19 @@ void parent(){
 	sigaction(SIGINT, &parent_action, 0);
 	sigaction(SIGUSR1, &notification_action, 0);
 	
-	while(1){};
+	while(1) {
+		user_cmnd = read(receive_pipe_fd, receive_buffer, BUFFER_SIZE);
+		if(user_cmnd > 0){
+			//printf("%s\n", receive_buffer);
+			test = strdup(receive_buffer);
+			word = test;
+			while((word = strsep(&test, " ")) != NULL && number_of_words < 2) {
+				strcpy(cloud_request[number_of_words], word); 
+				printf("%s\n", word);
+			}
+			send_cloud_message(cloud_request);
+		}
+	}
 }
 
 
@@ -205,7 +224,6 @@ void child(){
 		
 		// Add new device --> No group exists
 		else if (received_data.command == START && name_index == -1 && number_of_groups < 50){
-		//else if (device_index == -1 && name_index == -1 && number_of_groups < 50) {
 			int new_index = number_of_groups;
 			number_of_groups++;
 			
@@ -227,7 +245,6 @@ void child(){
 
 		// Add new device --> Pair device with previously added actuator/sensor
 		else if(received_data.command == START && name_index >= 0){		
-		//else if (device_index == -1 && name_index >= 0) {
 			// New device is a SENSOR	
 			if (received_data.dev_type == SENSOR) {
 				devices[name_index].sensor_pid = received_data.pid;
@@ -244,7 +261,7 @@ void child(){
 		}
 
 		// Update Device --> Device has already been added
-		else if (device_index >= 0) {
+		else if (received_data.command == UPDATE && device_index >= 0) {
 			if (received_data.dev_type == SENSOR) {
 			
 				// Check Threshold and Actuator status (Actuator must exist)
@@ -259,6 +276,9 @@ void child(){
 					}
 				}
 			}
+		}
+		else if (received_data.command == GET || received_data.command == PUT) {
+			printf("received GET or PUT\n");
 		}
 	}
 }
@@ -346,6 +366,42 @@ void update_actuator(int msgid, group_st *devices, int index, int is_on, int sen
 		kill(getppid(), SIGUSR1);
 	}
 	
+}
+
+/**
+ *
+ */
+void send_cloud_message(char **cloud_request_array) {
+	message_data_st cloud_data;
+	message_package_st cloud_message;
+	
+	// GET
+	if (strcmp(cloud_request_array[0], "GET") == 0) {
+		cloud_data.command = GET;
+		strcpy(cloud_data.name, cloud_request_array[1]);
+		
+		cloud_message.message_type = 1;
+		cloud_message.data = cloud_data;
+		
+		int msgid = msgget((key_t) MSG_Q_KEY, 0666);
+		if (msgsnd(msgid, (void *) &cloud_message, sizeof(cloud_message.data), 0) == -1) {
+			fprintf(stderr, "Message Send failed\n", errno);
+		}
+		
+	}
+	// PUT
+	else if (strcmp(cloud_request_array[0], "PUT") == 0) {
+		cloud_data.command = PUT;
+		strcpy(cloud_data.actuator_name, cloud_request_array[1]);
+		
+		cloud_message.message_type = 1;
+		cloud_message.data = cloud_data;
+		
+		int msgid = msgget((key_t) MSG_Q_KEY, 0666);
+		if (msgsnd(msgid, (void *) &cloud_message, sizeof(cloud_message.data), 0) == -1) {
+			fprintf(stderr, "Message Send failed\n", errno);
+		}
+	}
 }
 
 

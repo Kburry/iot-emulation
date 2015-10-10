@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
 	system("gnome-terminal -e ./controller");
 	
 	system("gnome-terminal -e ./cloud");
-	system("sleep 5");
+	system("sleep 2");
 	system("gnome-terminal -e \"./sensor thermometer 25\"");
 	system("gnome-terminal -e \"./actuator Heater thermometer 1\"");
 	

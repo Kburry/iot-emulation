@@ -15,7 +15,9 @@ typedef enum {
 typedef enum {
 	START,
 	STOP,
-	UPDATE
+	UPDATE,
+	GET,
+	PUT
 }Dev_Command;
 
 
