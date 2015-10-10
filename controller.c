@@ -11,7 +11,8 @@
 #include <sys/stat.h>
 #include "message_struct.h"
 
-#define FIFO_NAME "/tmp/cloud_fifo"
+#define CTRL_FIFO_NAME "/tmp/ctrl_cloud_fifo"
+#define USER_FIFO_NAME "/tmp/user_cloud_fifo"
 #define BUFFER_SIZE PIPE_BUF
 
 
@@ -28,6 +29,7 @@ int get_index_by_name(group_st *devices, int number_of_groups, char *name);
 void child();
 void parent();
 
+int pipe_fd;
 
 // Actuator Message: used to toggle actuator ON/OFF
 message_package_st toggle_act_message;
@@ -42,31 +44,43 @@ message_data_st toggle_act_data = {
 // Stop Message: used to signal that paired devices must stop
 message_package_st stop_msg;
 message_data_st stop_data = {
+	.name = "Stop Command",
+	.pid = -1,
+	.dev_type = ACTUATOR,
 	.command = STOP
 };
-
-int pipe_fd;
 
 
 int main(int argc, char argv[]){
 	stop_msg.data = stop_data;
-	
-	if (access(FIFO_NAME,F_OK) == -1){
-		if ( mkfifo(FIFO_NAME,0777) != 0) {
-			fprintf(stderr,"Could not create fifo %s\n", FIFO_NAME);
+
+	if (access(CTRL_FIFO_NAME,F_OK) == -1) {
+		printf("can't access fifo, making one\n");
+		if (mkfifo(CTRL_FIFO_NAME,0777) != 0) {
+			fprintf(stderr,"Could not create fifo: %s\n", CTRL_FIFO_NAME);
 			exit(EXIT_FAILURE);
 		} 
 	}
 
+	pipe_fd = open(CTRL_FIFO_NAME, O_WRONLY);
+	printf("Process result %d\n", pipe_fd);
+	
+	
 	int pid = fork();
 	switch(pid) {
     case -1: // Failure
     	perror("fork failed");
     	exit(1);
+		break;
     case 0: // Child
 		child();
-	}; 
+		exit(1);
+		break;
+	default:
+		break;
+	};
 	parent();
+	exit(1);
 }
 
 /**
@@ -81,6 +95,7 @@ void sigint_parent_handler(int sig) {
 	if ( msgsnd(msgid, (void *) &stop_msg, sizeof(stop_msg.data), 0) == -1 ) {
 		fprintf(stderr, "Child Process not stopped\n");
 	}
+	(void)close(pipe_fd);
 	exit(EXIT_SUCCESS);
 }
 
@@ -101,7 +116,7 @@ void sigusr1_parent_handler(int sig){
 		sprintf(buffer, "Sensor \"%s\" with value %d, turned OFF %s", message_data.sensor_name, 
 				message_data.sensor_value, message_data.actuator_name);
 	}
-	
+	//printf("%s\n",buffer);
 	if ( write(pipe_fd,buffer,BUFFER_SIZE) == -1 ){
 		fprintf(stderr,"write error on pipe\n");
 		exit(EXIT_FAILURE);
@@ -117,8 +132,17 @@ void sigint_child_handler(int sig) {}
  **/
 void parent(){
 	
-	pipe_fd = open(FIFO_NAME, O_WRONLY);
-	printf("Process result %d\n", pipe_fd);
+	//if (access(CTRL_FIFO_NAME,F_OK) == -1) {
+	//	printf("can't access fifo, making one\n");
+	//	if (mkfifo(CTRL_FIFO_NAME,0777) != 0) {
+	//		fprintf(stderr,"Could not create fifo: %s\n", CTRL_FIFO_NAME);
+	//		exit(EXIT_FAILURE);
+	//	} 
+	//}
+
+	//printf("in parent\n");
+	//pipe_fd = open(CTRL_FIFO_NAME, O_WRONLY);
+	//printf("Process result %d\n", pipe_fd);
 	
 	struct sigaction parent_action;
 	struct sigaction notification_action;
@@ -128,7 +152,7 @@ void parent(){
 	
 	sigemptyset(&parent_action.sa_mask);
 	sigemptyset(&notification_action.sa_mask);
-	
+
 	parent_action.sa_flags = 0;
 	notification_action.sa_flags = 0;
 	
@@ -163,7 +187,7 @@ void child(){
 	while(1){
 		if ( msgrcv(msgid, (void *) &received_message, sizeof(received_message.data), 1, 0) == -1 ) {
 			if (errno == EINTR) {
-				printf("Caught external signal interrupt. Retrying msgrcv()\n");
+				printf("Caught external signal interrupt.\n");
 				continue;
 			} else {
 				fprintf(stderr, "Message Received failed with Error: %d\n", errno);
@@ -180,7 +204,8 @@ void child(){
 		}
 		
 		// Add new device --> No group exists
-		else if (device_index == -1 && name_index == -1 && number_of_groups < 50) {
+		else if (received_data.command == START && name_index == -1 && number_of_groups < 50){
+		//else if (device_index == -1 && name_index == -1 && number_of_groups < 50) {
 			int new_index = number_of_groups;
 			number_of_groups++;
 			
@@ -201,7 +226,8 @@ void child(){
 		}
 
 		// Add new device --> Pair device with previously added actuator/sensor
-		else if (device_index == -1 && name_index >= 0) {
+		else if(received_data.command == START && name_index >= 0){		
+		//else if (device_index == -1 && name_index >= 0) {
 			// New device is a SENSOR	
 			if (received_data.dev_type == SENSOR) {
 				devices[name_index].sensor_pid = received_data.pid;
@@ -269,7 +295,6 @@ int get_index_by_pid(group_st *devices, int number_of_groups, pid_t pid) {
 	for (int i = 0; i < number_of_groups; i++) {
 
 		if (devices[i].sensor_pid == pid || devices[i].actuator_pid == pid){
-			//printf("pid is:%d\n",pid);
 			return i;
 		}
 	}
@@ -277,7 +302,7 @@ int get_index_by_pid(group_st *devices, int number_of_groups, pid_t pid) {
 }
 
 /**
- *  Update Actuator --> Message the actuator, turning it ON/OFF
+ *  Update Actuator --> Send a message to the actuator turning it ON/OFF
  **/
 void update_actuator(int msgid, group_st *devices, int index, int is_on, int sensor_data) {
 	devices[index].is_on = is_on;
@@ -286,17 +311,16 @@ void update_actuator(int msgid, group_st *devices, int index, int is_on, int sen
 	toggle_act_data.pid = devices[index].actuator_pid;
 	toggle_act_message.message_type = toggle_act_data.pid;
 
-	strcpy(toggle_act_data.actuator_name,devices[index].actuator_name);
+	strcpy(toggle_act_data.actuator_name, devices[index].actuator_name);
 	toggle_act_message.data = toggle_act_data;
 
-	if(is_on){
-		printf("%s threshold crossed. Turning ON\n",toggle_act_data.actuator_name);
-	}	
-	else{
-		printf("%s threshold crossed. Turning OFF\n",toggle_act_data.actuator_name);
+	if (is_on) {
+		printf("%s threshold crossed. Turning ON\n", toggle_act_data.actuator_name);
+	} else {
+		printf("%s threshold crossed. Turning OFF\n", toggle_act_data.actuator_name);
 	}
 
-	if ( msgsnd(msgid, (void *) &toggle_act_message, sizeof(toggle_act_message.data), 0) == -1) {
+	if ( msgsnd(msgid, (void *) &toggle_act_message, sizeof(toggle_act_message.data), 0) == -1 ) {
 		fprintf(stderr, "Message sent failed. Error: %d\n", errno);
 		exit(EXIT_FAILURE);
 	}
@@ -314,12 +338,12 @@ void update_actuator(int msgid, group_st *devices, int index, int is_on, int sen
 	message.message_type = getppid();
 	message.data = parent_data;
 
-	if (msgsnd(msgid, (void *) &message, sizeof(message.data), 0) == -1) {
-		fprintf(stderr,"Messaging parent failed %d\n",errno);
+	if ( msgsnd(msgid, (void *) &message, sizeof(message.data), 0) == -1 ) {
+		fprintf(stderr, "Messaging parent failed %d\n", errno);
 		exit(EXIT_FAILURE);
 	}
 	else {
-		kill(getppid(),SIGUSR1);
+		kill(getppid(), SIGUSR1);
 	}
 	
 }
