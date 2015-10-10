@@ -1,9 +1,9 @@
-all:	sensor actuator controller
+all:	sensor actuator controller cloud
 
 sensor.c: message_struct.h
 actuator.c: message_struct.h
 controller.c: message_struct.h
 
-clean:
+clean:
 	rm -f sensor actuator controller cloud
 	
