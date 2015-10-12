@@ -1,6 +1,20 @@
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <signal.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <sys/msg.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 
-#define MSG_Q_KEY 1234
+#define CTRL_FIFO_NAME "/tmp/ctrl_cloud_fifo"
+#define USER_FIFO_NAME "/tmp/user_cloud_fifo"
+#define BUFFER_SIZE PIPE_BUF
+
+#define MSG_Q_KEY 1111
 #define SRV_Q_KEY 1
 #define NAMESIZE 25
 
@@ -57,22 +71,12 @@ typedef struct {
 
 
 /**
- * Structure for the data that will update the parent process.
- **/
-typedef struct {
-	char sensor_name[NAMESIZE];
-	char actuator_name[NAMESIZE];
-	int sensor_value;
-	int is_on;
-}update_parent_st;
-
-/**
  * Structure for the message that will update the parent process.
- * Contains update_parent_st.
+
  **/
 typedef struct {
 	long int message_type;
-	update_parent_st data;
+	char parent_msg[BUFFER_SIZE];
 }update_parent_msg_st;
 
 

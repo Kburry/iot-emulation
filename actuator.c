@@ -1,3 +1,4 @@
+/*
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,6 +7,7 @@
 #include <errno.h>
 #include <limits.h>
 //#include "device.h"
+*/
 #include "message_struct.h"
 
 void e_print(char * err_ptr);
@@ -35,13 +37,10 @@ int main(int argc, char * argv[]){
 	actuator_data.current_value = atoi(argv[3]);
 
 	running = 1;
-	msgid = msgget((key_t) MSG_Q_KEY, 0666);
-
-	// Ensure Message Queue is running
-	if(msgid == -1) {
-		fprintf(stderr, "Message queue not started. Error: %d\n", errno);
-		exit(EXIT_FAILURE);
-	}
+	
+	// Waiting for controller to start
+	while ( (msgid = msgget((key_t) MSG_Q_KEY, 0666)) == -1) {}
+	printf("Acknowledging that controller has started\n");
 
 	// Send first message --> "It's alive!!!!"
 	actuator_package.data = actuator_data;

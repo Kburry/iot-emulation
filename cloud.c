@@ -15,6 +15,7 @@
 #define USER_FIFO_NAME "/tmp/user_cloud_fifo"
 #define BUFFER_SIZE PIPE_BUF
 
+void clear_whitespace(char *string);
 
 int main(int argc, char argv[]){
 	char receive_buffer[BUFFER_SIZE+1];
@@ -68,21 +69,22 @@ int main(int argc, char argv[]){
 	send_pipe_fd = open(USER_FIFO_NAME, O_WRONLY);
 	
 	while(1) {
-		// Format: GET sensor_name			-->	Returns: Sensor X with threshhold Y paired with Actuator Z 
+		// Format: GET sensor_name			-->	Returns: Sensor X with threshold Y paired with Actuator Z 
 		// Format: PUT actuator_name ON/OFF	--> Returns: User turned ON/OFF Actuator Z
-		printf("Enter Command (GET SENSOR_NAME or PUT ACTUATOR_NAME):\n");
-		scanf("%s", &send_buffer);
-		
+		printf("Enter Command with format \"GET SENSOR_NAME\" or \"PUT ACTUATOR_NAME\":\n");
+		fgets(send_buffer, BUFFER_SIZE, stdin);
+		clear_whitespace(send_buffer);
 		
 		if ( write(send_pipe_fd, send_buffer, BUFFER_SIZE) == -1 ){
 			fprintf(stderr,"write error on pipe\n");
 			exit(EXIT_FAILURE);
 		}
+		
+
 	}
-	
-	
-	
-	
-	
-	
 }
+
+void clear_whitespace(char *string){
+	char *string_copy = strdup(string);
+	strcpy(string, strsep(&string_copy, "\n"));
+}	

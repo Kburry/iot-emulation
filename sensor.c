@@ -1,11 +1,3 @@
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/msg.h>
-#include <errno.h>
-#include <limits.h>
-//#include "device.h"
 #include "message_struct.h"
 
 void e_print(char * err_ptr);
@@ -27,16 +19,11 @@ int main(int argc, char * argv[]){
 	strcpy(sensor_data.actuator_name ,"");
 	strcpy(sensor_data.name, argv[1]);
 
-	printf("here\n");
-
 	running = 1;
-	msgid = msgget((key_t) MSG_Q_KEY, 0666);
 
-	// Ensure Message Queue is running
-	if(msgid == -1) {
-		fprintf(stderr,"Server message queue not started. Error: %d\n",errno);
-		exit(EXIT_FAILURE);
-	}
+	// Waiting for controller to start
+	while ( (msgid = msgget((key_t) MSG_Q_KEY, 0666)) == -1) {}
+	printf("Acknowledging that controller has started\n");
 
 	// Send first message
 	sensor_package.data = sensor_data;
