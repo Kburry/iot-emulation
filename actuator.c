@@ -37,6 +37,8 @@ int main(int argc, char * argv[]){
 	actuator_data.current_value = atoi(argv[3]);
 
 	running = 1;
+
+	printf("Actuator %s with PID: %d has Started\n\n", actuator_data.actuator_name, actuator_data.pid);
 	
 	// Waiting for controller to start
 	while ( (msgid = msgget((key_t) MSG_Q_KEY, 0666)) == -1) {}
@@ -51,7 +53,6 @@ int main(int argc, char * argv[]){
 			exit(EXIT_FAILURE);
 
 	}
-	printf("%s Actuator PID: %d\n", actuator_data.actuator_name, actuator_data.pid);
 
 	// Receive subsequent message(s)
 	while(running) {

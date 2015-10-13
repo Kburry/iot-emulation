@@ -46,6 +46,8 @@ message_data_st stop_data = {
 int main(int argc, char argv[]){
 	stop_msg.data = stop_data;
 
+	printf("Controller has Started\n");
+
 	if (access(CTRL_FIFO_NAME,F_OK) == -1) {
 		printf("can't access fifo, making one\n");
 		if (mkfifo(CTRL_FIFO_NAME,0777) != 0) {
@@ -246,7 +248,7 @@ void child(){
 		// Update Device --> Device has already been added
 		else if (received_data.command == UPDATE && device_index >= 0) {
 			if (received_data.dev_type == SENSOR) {
-			
+				devices[device_index].sensor_value = received_data.current_value;
 				// Check Threshold and Actuator status (Actuator must exist)
 				if (devices[device_index].actuator_pid != 0) {
 					if (received_data.current_value >= devices[device_index].threshold 
@@ -265,9 +267,9 @@ void child(){
 			char get_cmnd_msg[BUFFER_SIZE];
 			
 			if (strcmp(devices[name_index].actuator_name, "\0")) {
-				sprintf(get_cmnd_msg, "\nSensor %s with threshold %d paired with Actuator %s\n",
+				sprintf(get_cmnd_msg, "\nSensor %s with Current Value %d, paired with Actuator %s\n",
 						devices[name_index].sensor_name, 
-						devices[name_index].threshold, 
+						devices[name_index].sensor_value, 
 						devices[name_index].actuator_name
 					);
 				notify_parent(msgid, get_cmnd_msg);

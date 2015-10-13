@@ -9,7 +9,7 @@ int main(int argc, char * argv[]){
 	message_package_st sensor_package;
 	int running;
 	int msgid;
-
+	
 	// Populate initial message
 	sensor_data.pid = getpid();
 	sensor_data.dev_type = SENSOR;
@@ -19,6 +19,7 @@ int main(int argc, char * argv[]){
 	strcpy(sensor_data.actuator_name ,"");
 	strcpy(sensor_data.name, argv[1]);
 
+	printf("Sensor %s with PID: %d has Started\n\n", sensor_data.name, sensor_data.pid);
 	running = 1;
 
 	// Waiting for controller to start
@@ -33,7 +34,6 @@ int main(int argc, char * argv[]){
 			exit(EXIT_FAILURE);
 	}
 	sensor_data.command = UPDATE;
-	printf("Sensor PID: %d\n", sensor_data.pid);
 
 	// Send subsequent message(s)
 	while(running) {

@@ -26,6 +26,8 @@ int main(int argc, char argv[]){
 	int res;
 	memset(receive_buffer, '\0', sizeof(receive_buffer));
 	memset(send_buffer, '\0', sizeof(send_buffer));
+
+	printf("Cloud has Started\n\n");
 	
 	pid = fork();
 	

@@ -63,9 +63,10 @@ typedef struct{
 typedef struct {
 	char sensor_name[NAMESIZE];		// if NULL, unknown sensor
 	char actuator_name[NAMESIZE];	// if NULL, unknown actuator
-	int sensor_pid;					// Is 0 if no device.
-	int actuator_pid;				// Is 0 if no device.
+	int sensor_pid;					// Is 0 if no device
+	int actuator_pid;				// Is 0 if no device
 	int threshold;					// Taken from SENSOR
+	int sensor_value;				// Taken from SENSOR
 	int is_on;						// Only for ACTUATOR
 }group_st;
 
