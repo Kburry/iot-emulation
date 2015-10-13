@@ -1,22 +1,20 @@
-/*
-#include <unistd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/msg.h>
-#include <errno.h>
-#include <limits.h>
-//#include "device.h"
-*/
+/**
+ * actuator.c made by:
+ *   Reid Cain-Mondoux: 100945700
+ *   Noah Segal: 100911661
+ **/
+
 #include "message_struct.h"
 
-void e_print(char * err_ptr);
+/**
+ * Function Declaration(s)
+ **/
 void print_state(char *name, int is_on);
 
 /**
  *  Code responisble for initializing an Actuator
  *  
- *  From command line: ./actuator actuator_name paired_sensor_name ON/OFF
+ *  From command line: ./actuator actuator_name sensor_name ON/OFF
  *  ON  = 1
  *  OFF = 0
  **/
@@ -51,12 +49,11 @@ int main(int argc, char * argv[]){
 	if(msgsnd(msgid, (void *) &actuator_package, sizeof(actuator_package.data), 0) == -1){
 			fprintf(stderr, "Message sent failed. Error: %d\n", errno);
 			exit(EXIT_FAILURE);
-
 	}
 
 	// Receive subsequent message(s)
 	while(running) {
-
+		
 		if(msgrcv(msgid, (void *) &actuator_package, sizeof(actuator_package.data), actuator_data.pid, 0) == -1){
 			fprintf(stderr, "Failed receiving message. Error: %d\n", errno);
 			exit(EXIT_FAILURE);
@@ -78,14 +75,9 @@ int main(int argc, char * argv[]){
 void print_state(char *name, int is_on) {
 	if (is_on) {
 		printf("%s is ON\n", name);
-	}
-	else {
+	} else {
 		printf("%s is OFF\n", name);
 	}
 }
 
-void e_print(char * err_ptr){
-	fprintf(stderr, "%s Error: %d\n", err_ptr,errno);
-	exit(EXIT_FAILURE);
-}
 

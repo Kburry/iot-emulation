@@ -6,4 +6,3 @@ controller.c: message_struct.h
 
 clean:
 	rm -f sensor actuator controller cloud main
-	

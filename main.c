@@ -1,3 +1,9 @@
+/**
+ * main.c made by:
+ *   Reid Cain-Mondoux: 100945700
+ *   Noah Segal: 100911661
+ **/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +22,7 @@ int main(int argc, char *argv[])
 	system("sleep 2");
 	system("gnome-terminal -e \"./sensor thermometer 25\"");
 	system("gnome-terminal -e \"./actuator Heater thermometer 1\"");
-	
+	system("sleep 1");
 	system("gnome-terminal -e \"./actuator Tardis DalekDetector 0\"");
 	system("gnome-terminal -e \"./sensor DalekDetector  1\"");
 	

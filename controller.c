@@ -1,10 +1,13 @@
+/**
+ * controller.c made by:
+ *   Reid Cain-Mondoux: 100945700
+ *   Noah Segal: 100911661
+ **/
+
 #include "message_struct.h"
 
-
-
-
 /**
- * Function declaration
+ * Function declarations
  **/
 int start_controller();
 void stop_system(int msgid, group_st *devices, int index);
@@ -21,9 +24,12 @@ void send_cloud_message(char *command, char *device);
 void child();
 void parent();
 
+/**
+ * Global variable declarations
+ **/
 int send_pipe_fd;
 
-// Actuator Message: used to toggle actuator ON/OFF
+// Actuator Message Struct: used to toggle actuator ON/OFF
 message_package_st toggle_act_message;
 message_data_st toggle_act_data = {
 	.pid = -1,
@@ -33,7 +39,7 @@ message_data_st toggle_act_data = {
 	.current_value = -1
 };
 
-// Stop Message: used to signal that paired devices must stop
+// Stop Message Struct: used to signal paired devices to stop
 message_package_st stop_msg;
 message_data_st stop_data = {
 	.name = "Stop Command",
@@ -42,7 +48,10 @@ message_data_st stop_data = {
 	.command = STOP
 };
 
-
+/**
+ * Main function: forks (creates child & parent processes)
+ * Makes & opens a new fifo (for Cloud output)
+ **/
 int main(int argc, char argv[]){
 	stop_msg.data = stop_data;
 
@@ -55,7 +64,6 @@ int main(int argc, char argv[]){
 			exit(EXIT_FAILURE);
 		} 
 	}
-
 	send_pipe_fd = open(CTRL_FIFO_NAME, O_WRONLY);	
 	
 	int pid = fork();
@@ -91,6 +99,10 @@ void sigint_parent_handler(int sig) {
 	exit(EXIT_SUCCESS);
 }
 
+/**
+ * Notify the Cloud of an update
+ * Handles threshold crossing, GET, and PUT commands
+ **/
 void sigusr1_parent_handler(int sig){
 	int msgid = msgget((key_t) MSG_Q_KEY, 0666);
 	char buffer[BUFFER_SIZE+1];
@@ -108,12 +120,15 @@ void sigusr1_parent_handler(int sig){
 	}
 }
 
-// Function required so child doesn't close from external interrupt
+/**
+ * Function required so child doesn't close from external interrupt
+ **/
 void sigint_child_handler(int sig) {}
 
 
 /**
- *  Parent process
+ * Parent process: Sends & Receives commands from the Cloud
+ * Sets up Signal Handlers
  **/
 void parent(){
 	
@@ -168,7 +183,9 @@ void parent(){
 
 
 /**
- *  Child process
+ * Child process: Receives input from devices and responds appropriately
+ * Responsible for adding and updating devices
+ * Messages & Signals Parent during threshold crossing & GET/PUT commands
  **/
 void child(){
 	int number_of_groups = 0;
@@ -206,7 +223,6 @@ void child(){
 		if (received_data.command == STOP) {
 			stop_system(msgid, devices, number_of_groups);
 		}
-		
 		// Add new device --> No group exists
 		else if (received_data.command == START && name_index == -1 && number_of_groups < 50){
 			int new_index = number_of_groups;
@@ -227,7 +243,6 @@ void child(){
 				strcpy(devices[new_index].actuator_name, received_data.actuator_name);
 			}
 		}
-
 		// Add new device --> Pair device with previously added actuator/sensor
 		else if(received_data.command == START && name_index >= 0){		
 			// New device is a SENSOR	
@@ -244,7 +259,6 @@ void child(){
 				printf("Actuator added to \"%s\"\n\n", devices[name_index].sensor_name);
 			}
 		}
-
 		// Update Device --> Device has already been added
 		else if (received_data.command == UPDATE && device_index >= 0) {
 			if (received_data.dev_type == SENSOR) {
@@ -262,7 +276,7 @@ void child(){
 				}
 			}
 		}
-
+		// Handle GET Command
 		else if (received_data.command == GET && name_index != -1) {
 			char get_cmnd_msg[BUFFER_SIZE];
 			
@@ -275,7 +289,7 @@ void child(){
 				notify_parent(msgid, get_cmnd_msg);
 			}
 		}
-		
+		// Handle PUT Command
 		else if (received_data.command == PUT) {
 			char put_cmnd_msg[BUFFER_SIZE];
 			int actuator_index = get_index_by_name(devices, number_of_groups, 
@@ -303,7 +317,7 @@ void child(){
 
 
 /**
- * Return message queue ID.
+ * Creates the Message Queue and returns its ID
  **/
 int start_controller() {
 	int msgid = msgget((key_t) MSG_Q_KEY,0666 | IPC_CREAT);
@@ -326,7 +340,6 @@ int get_index_by_name(group_st *devices, int number_of_groups, char *name, Dev_T
 		}
 	}
 	else if (device_type == ACTUATOR) {
-
 		for (int i = 0; i < number_of_groups; i++) {
 			if (strcmp(name, devices[i].actuator_name) == 0) {
 				return i;
@@ -341,7 +354,6 @@ int get_index_by_name(group_st *devices, int number_of_groups, char *name, Dev_T
  **/
 int get_index_by_pid(group_st *devices, int number_of_groups, pid_t pid) {	
 	for (int i = 0; i < number_of_groups; i++) {
-
 		if (devices[i].sensor_pid == pid || devices[i].actuator_pid == pid){
 			return i;
 		}
@@ -350,7 +362,7 @@ int get_index_by_pid(group_st *devices, int number_of_groups, pid_t pid) {
 }
 
 /**
- * Notify the parent
+ * Notify the Parent that there is a message for the Cloud
  **/
 void notify_parent(int msgid, char *message_to_send) {
 	update_parent_msg_st message;
@@ -361,8 +373,7 @@ void notify_parent(int msgid, char *message_to_send) {
 	if ( msgsnd(msgid, (void *) &message, sizeof(message.parent_msg), 0) == -1 ) {
 		fprintf(stderr, "Messaging parent failed %d\n", errno);
 		exit(EXIT_FAILURE);
-	}
-	else {
+	} else {
 		kill(getppid(), SIGUSR1);
 	}
 
@@ -384,12 +395,10 @@ void update_actuator(int msgid, group_st *devices, int index, int is_on, int sen
 		printf("%s threshold crossed. Turning OFF\n", devices[index].actuator_name);
 		sprintf(message_to_parent, "Sensor \"%s\" with value %d, turned OFF %s", 
 				devices[index].sensor_name, sensor_data, devices[index].actuator_name);
-
 	}
 	
 	toggle_actuator(msgid, devices, index, is_on);
 	notify_parent(msgid, message_to_parent);
-	
 }
 
 /**
@@ -411,13 +420,13 @@ void toggle_actuator(int msgid, group_st *devices, int index, int is_on) {
 }
 
 /**
- *
- */
+ * Sends a GET/PUT message to the child (received from the Cloud)
+ **/
 void send_cloud_message(char *command, char *device) {
 	message_data_st cloud_data;
 	message_package_st cloud_message;
 	
-	// GET
+	// GET command
 	if (strcmp(command, "GET") == 0) {
 		cloud_data.command = GET;
 		strcpy(cloud_data.name, device);
@@ -431,7 +440,7 @@ void send_cloud_message(char *command, char *device) {
 		}
 		
 	}
-	// PUT
+	// PUT command
 	else if (strcmp(command, "PUT") == 0) {
 		cloud_data.command = PUT;
 		strcpy(cloud_data.actuator_name, device);
@@ -449,17 +458,18 @@ void send_cloud_message(char *command, char *device) {
 
 /**
  * Shut down all sensors and actuators
+ * Close the Message Queue
  */
 void stop_system(int msgid, group_st *devices, int index) {
 	for (int i = 0; i < index; i++) {
-		//Sensor
+		//Sensor shutdown
 		if (devices[i].sensor_pid != 0) {
 			stop_msg.message_type = devices[i].sensor_pid;
 			if ( msgsnd(msgid, (void *) &stop_msg, sizeof(stop_msg.data), 0) == -1 ) {
 				fprintf(stderr, "Failed to send STOP message to Sensor: %s\n", devices[i].sensor_name);
 			}
 		}
-		//Actuator
+		//Actuator shutdown
 		if (devices[i].actuator_pid != 0) {
 			stop_msg.message_type = devices[i].actuator_pid;
 			if ( msgsnd(msgid, (void *) &stop_msg, sizeof(stop_msg.data), 0) == -1 ) {
@@ -467,7 +477,7 @@ void stop_system(int msgid, group_st *devices, int index) {
 			}
 		}
 	}
-	//Stop Everything
+	//Stop Everything --> Close the Message Queue
 	if (msgctl(msgid, IPC_RMID, 0) == -1) {
         fprintf(stderr, "msgctl(IPC_RMID) failed\n");
         exit(EXIT_FAILURE);

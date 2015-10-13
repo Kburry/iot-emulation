@@ -1,8 +1,17 @@
+/**
+ * sensor.c made by:
+ *   Reid Cain-Mondoux: 100945700
+ *   Noah Segal: 100911661
+ **/
+
 #include "message_struct.h"
 
-void e_print(char * err_ptr);
-
-
+/**
+ * Code responsible for initializing a Sensor
+ *  
+ *  From command line: ./sensor sensor_name threshold
+ *  threshold = integer
+ **/
 int main(int argc, char * argv[]){
 
 	message_data_st sensor_data;
@@ -43,7 +52,7 @@ int main(int argc, char * argv[]){
 		printf("Sensor \"%s\" Value: %d\n",sensor_data.name, sensor_data.current_value);
 
 		msgrcv(msgid, (void *) &sensor_package, sizeof(sensor_package.data), sensor_data.pid, IPC_NOWAIT);
-		//Stop Everything
+		// Shut Down
 		if (sensor_data.command == STOP) {
 			printf("Shut-down command received: Shutting down\n");
 			exit(EXIT_SUCCESS);
@@ -57,10 +66,5 @@ int main(int argc, char * argv[]){
 		// Check every 2 seconds
 		sleep(2);
 	}
-}
-
-void e_print(char * err_ptr){
-	fprintf(stderr, "%s Error: %d\n",err_ptr,errno);
-	exit(EXIT_FAILURE);
 }
 

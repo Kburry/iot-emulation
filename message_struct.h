@@ -1,3 +1,9 @@
+/**
+ * message_struct.h made by:
+ *   Reid Cain-Mondoux: 100945700
+ *   Noah Segal: 100911661
+ **/
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -21,11 +27,18 @@
 #define ON 1
 #define OFF 0
 
+
+/**
+ * Enum Declarations
+ **/
+
+/* Device Type */
 typedef enum {
 	SENSOR,
 	ACTUATOR
 }Dev_Type;
 
+/* Device Commands */
 typedef enum {
 	START,
 	STOP,
@@ -73,13 +86,9 @@ typedef struct {
 
 /**
  * Structure for the message that will update the parent process.
-
  **/
 typedef struct {
 	long int message_type;
 	char parent_msg[BUFFER_SIZE];
 }update_parent_msg_st;
-
-
-
 
